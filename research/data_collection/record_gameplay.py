@@ -4,6 +4,7 @@ import mss
 import numpy as np
 import keyboard
 import pygetwindow as gw
+from pathlib import Path
 
 # ========== CAPTURE REGION CONFIG ==========
 # Mode 1: Auto-detect game window (may be inaccurate)
@@ -24,7 +25,8 @@ MANUAL_REGION = {
 # ===========================================
 
 # Recording configuration
-TARGET_SIZE = (800, 600)  # Storage resolution
+TARGET_SIZE = (256, 192)  # Storage resolution (W, H) for training
+OUTPUT_DIR = "../training/recorded"
 GAMEPLAY_DURATION = 180   # 3 minutes gameplay
 BUFFER_TIME = 15          # 15 seconds buffer
 RECORDING_DURATION = GAMEPLAY_DURATION + BUFFER_TIME  # 195s = 3min15s
@@ -238,8 +240,10 @@ def collect_multiple_gameplays():
         
         print(f"\n📊 Total recorded: {len(all_observations)} frames")
         
-        # Save after each gameplay to prevent data loss
-        filename = f"elsword_gameplay_{gameplay_idx:02d}.npz"
+        output_path = Path(OUTPUT_DIR)
+        output_path.mkdir(parents=True, exist_ok=True)
+        
+        filename = output_path / f"elsword_gameplay_{gameplay_idx:02d}.npz"
         print(f"💾 Saving {filename}...")
         np.savez_compressed(filename, obs=np.array(obs), act=np.array(acts))
         print(f"✅ Saved {filename}")
@@ -248,15 +252,6 @@ def collect_multiple_gameplays():
             print(f"\n⏳ Preparing for gameplay #{gameplay_idx + 1}...")
             print(f"   Load game and press [{START_KEY.upper()}] when ready")
     
-    # Save combined file
-    print("\n" + "=" * 60)
-    print("💾 Saving combined file...")
-    np.savez_compressed(
-        "elsword_all_gameplays.npz", 
-        obs=np.array(all_observations), 
-        act=np.array(all_actions)
-    )
-    
     total_duration = len(all_observations) / FPS
     total_ram_gb = (len(all_observations) * TARGET_SIZE[0] * TARGET_SIZE[1] * 3) / (1024**3)
     
@@ -264,6 +259,7 @@ def collect_multiple_gameplays():
     print(f"   Total frames: {len(all_observations)}")
     print(f"   Total duration: {total_duration:.1f}s ({total_duration/60:.1f} min)")
     print(f"   RAM used: ~{total_ram_gb:.2f} GB")
+    print(f"   Saved to: {OUTPUT_DIR}")
     print("=" * 60)
 
 if __name__ == "__main__":
