@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 # Input npz file name
-INPUT_FILE = "elsword_gameplay_01.npz"
+INPUT_FILE = "../training/recorded_reshaped/elsword_gameplay_01.npz"
 # Output video file name
 OUTPUT_FILE = "debug_replay.mp4"
 # Video frame rate (FPS)

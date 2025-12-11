@@ -1,0 +1,25 @@
+general_config:
+  max_frame: 3900 # Per play
+  total_play: 5
+  frame_rate: 20
+  data_path: "../recorded/"  # Use reshaped data (256x192)
+
+vision_config: # VAE
+  input_channels: 3 # RGB
+  latent_dim: 64
+  input_size: [256, 192] # [width, height]
+  dropout_rate: 0.1
+  learning_rate: 0.0003
+  commitment_cost: 0.25
+  num_embedding: 512
+  num_hidden: 128
+  res_layer: 2
+  res_hidden: 32
+  batch_size: 256
+  num_epochs: 500
+
+memory_config: # MDN-GRU
+  input_size: 278 # latent_dim + action_dim
+  action_dim: 22
+  latent_dim: 256
+  hidden_size: 1024

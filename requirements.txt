@@ -3,3 +3,6 @@ numpy
 opencv-python
 keyboard
 pygetwindow
+torch
+scikit-learn
+accelerate
