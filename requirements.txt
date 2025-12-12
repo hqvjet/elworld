@@ -6,3 +6,4 @@ pygetwindow
 torch
 scikit-learn
 accelerate
+cv2
