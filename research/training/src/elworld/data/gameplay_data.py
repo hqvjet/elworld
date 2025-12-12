@@ -8,11 +8,10 @@ class GameplayDataset(Dataset):
     """
     PyTorch Dataset for gameplay data.
     Preloads all data into memory for fast training.
+    Data is preprocessed during loading (transpose) for efficiency.
     """
     
     def __init__(self, data_dir: str, max_files: int = None, transform=None):
-        self.transform = transform
-        
         data_path = Path(data_dir)
         npz_files = sorted(data_path.glob("*.npz"))
         
@@ -26,7 +25,11 @@ class GameplayDataset(Dataset):
         
         for npz_file in npz_files:
             data = np.load(npz_file)
-            all_obs.append(data['obs'])
+            obs = data['obs']
+            # Preprocess: transpose from (H, W, C) to (C, H, W) during loading
+            if obs.shape[-1] == 3:  # If channels last
+                obs = obs.transpose(0, 3, 1, 2)  # (N, H, W, C) -> (N, C, H, W)
+            all_obs.append(obs)
             all_act.append(data['act'])
             data.close()
         
@@ -34,6 +37,7 @@ class GameplayDataset(Dataset):
         self.actions = np.concatenate(all_act, axis=0)
         
         print(f"Loaded {len(self.observations):,} frames")
+        print(f"Observation shape: {self.observations.shape}")
     
     def __len__(self):
         return len(self.observations)
@@ -42,9 +46,7 @@ class GameplayDataset(Dataset):
         obs = self.observations[idx]
         act = self.actions[idx]
         
-        if self.transform:
-            obs = self.transform(obs)
-        
+        # Data already preprocessed during loading, just convert to tensor
         return {
             'observation': torch.from_numpy(obs).float(),
             'action': torch.from_numpy(act).float()
