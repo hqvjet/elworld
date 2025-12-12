@@ -8,6 +8,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from utils import load_config, get_general_config, get_vision_config, get_memory_config
 from elworld.train.pipeline.vision_trainer import VisionTrainer
 from elworld.preprocess.data_setup import setup_data
+from elworld.utils.real_vs_vision import extract_video
 
 
 class Trainer:
@@ -18,6 +19,7 @@ class Trainer:
         - "vision": Train only the vision model (VQ-VAE)
         - "memory": Train only the memory model (MDN-GRU)
         - "control": Train only the control model
+        - "extract_video": Create comparison video (actual vs vision model)
     """
     
     def __init__(self, config_path="config.yaml", mode="vision", device=None):
@@ -42,7 +44,7 @@ class Trainer:
         
         print(f"Using device: {self.device}")
         
-        valid_modes = ["vision", "memory", "control"]
+        valid_modes = ["vision", "memory", "control", "extract_video"]
         if self.mode not in valid_modes:
             raise ValueError(f"Invalid mode '{self.mode}'. Must be one of {valid_modes}")
         
@@ -141,10 +143,49 @@ class Trainer:
         
         print("[TODO] Control trainer implementation")
     
-    def train(self):
-        """Execute training based on mode."""
+    def extract_vision_video(self, data_file=None, output_file=None, max_frames=None):
+        """Create comparison video: actual vs vision model reconstruction."""
         print(f"\n{'='*60}")
-        print(f"Starting Training - Mode: {self.mode.upper()}")
+        print("Extracting Vision Model Comparison Video")
+        print(f"{'='*60}")
+        
+        # Default values
+        data_path = self.general_config.get('data_path', '../recorded')
+        if data_file is None:
+            # Use first recorded file by default
+            data_file = f"{data_path}/elsword_gameplay_01.npz"
+        elif not data_file.startswith('/'):
+            # Relative path
+            data_file = f"{data_path}/{data_file}"
+        
+        if output_file is None:
+            output_file = "vision_comparison.mp4"
+        
+        checkpoint_path = "checkpoints/best_model"
+        
+        print(f"\nConfiguration:")
+        print(f"  Data file: {data_file}")
+        print(f"  Checkpoint: {checkpoint_path}")
+        print(f"  Output: {output_file}")
+        print(f"  Max frames: {max_frames if max_frames else 'All'}")
+        print(f"  Device: {self.device}")
+        
+        # Call extract_video function
+        extract_video(
+            data_path=data_file,
+            checkpoint_path=checkpoint_path,
+            output_path=output_file,
+            max_frames=max_frames,
+            fps=self.general_config.get('frame_rate', 20),
+            device=str(self.device)
+        )
+        
+        print(f"\n✓ Video extraction completed!")
+    
+    def train(self):
+        """Execute training or evaluation based on mode."""
+        print(f"\n{'='*60}")
+        print(f"Starting - Mode: {self.mode.upper()}")
         print(f"{'='*60}")
         
         if self.mode == "vision":
@@ -153,9 +194,17 @@ class Trainer:
             self.train_memory()
         elif self.mode == "control":
             self.train_control()
+        elif self.mode == "extract_video":
+            # Extract video with default settings
+            # Can be customized by calling extract_vision_video() directly
+            self.extract_vision_video(
+                data_file=None,  # Use first file
+                output_file="vision_comparison.mp4",
+                max_frames=500  # Process first 500 frames
+            )
         
         print(f"\n{'='*60}")
-        print(f"Training completed! ✓")
+        print(f"Task completed! ✓")
         print(f"{'='*60}")
 
 
