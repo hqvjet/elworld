@@ -15,7 +15,7 @@ vision_config: # VAE
   num_hidden: 128
   res_layer: 2
   res_hidden: 32
-  batch_size: 256
+  batch_size: 128
   num_epochs: 500
 
 memory_config: # MDN-GRU

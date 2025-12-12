@@ -7,7 +7,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from elworld.data.gameplay_data import GameplayDataset, SequenceGameplayDataset
 
 
-def setup_vision_data(data_path, vision_config, general_config):
+def setup_vision_data(data_path, vision_config, general_config) -> DataLoader:
     """
     Setup data for vision model (VQ-VAE) training.
     Vision model needs individual frames for reconstruction.
@@ -24,30 +24,30 @@ def setup_vision_data(data_path, vision_config, general_config):
     print("Setting up Vision Dataset")
     print(f"{'='*60}")
     
-    def vision_transform(obs):
-        """Transform for vision model: (H, W, C) -> (C, H, W)"""
-        if obs.shape[-1] == 3:  # If channels last
-            obs = obs.transpose(2, 0, 1)
-        return obs
-    
     vision_dataset = GameplayDataset(
         data_dir=data_path,
         max_files=general_config.get('total_play'),
-        transform=vision_transform
+        transform=None  # No transform needed, preprocessing done during load
     )
     
+    # Optimized DataLoader settings for maximum throughput
     vision_dataloader = DataLoader(
         vision_dataset,
         batch_size=vision_config['batch_size'],
         shuffle=True,
-        num_workers=0,
-        pin_memory=True
+        num_workers=4,  # Use 4 worker processes for parallel data loading
+        pin_memory=True,  # Faster GPU transfer
+        prefetch_factor=2,  # Prefetch 2 batches per worker
+        persistent_workers=True  # Keep workers alive between epochs
     )
     
     print(f"Vision dataloader ready:")
     print(f"  Total samples: {len(vision_dataset)}")
     print(f"  Total batches: {len(vision_dataloader)}")
     print(f"  Batch size: {vision_config['batch_size']}")
+    print(f"  Num workers: 4 (parallel data loading)")
+    print(f"  Prefetch factor: 2")
+    print(f"  Persistent workers: True")
     
     return vision_dataloader
 
