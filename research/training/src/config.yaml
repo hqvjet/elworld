@@ -18,8 +18,16 @@ vision_config: # VAE
   batch_size: 128
   num_epochs: 500
 
-memory_config: # MDN-GRU
-  input_size: 278 # latent_dim + action_dim
+memory_config: # Transformer/MinGPT
+  grid_latent_dim: [24, 32]
   action_dim: 22
-  latent_dim: 256
-  hidden_size: 1024
+  learning_rate: 0.0003
+  block_size: 1537
+  num_layers: 4  # Reduced from 6 to 4 for faster training
+  num_heads: 4
+  vocab_size: 512 # Codebook size from VAE
+  n_emb: 64
+  dropout: 0.1
+  batch_size: 32  # Reduced from 64 to fit in 4GB GPU
+  num_epochs: 200
+

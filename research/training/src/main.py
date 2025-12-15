@@ -4,7 +4,7 @@ from elworld.train.trainer import Trainer
 
 if __name__ == "__main__":
     # ============= CONFIGURE HERE =============
-    mode = "extract_video"  # "vision", "memory", "control", "extract_video"
+    mode = "memory"  # "vision", "memory", "control", "extract_video"
     config_path = "config.yaml"
     device = 'cuda' # 'cuda', 'cpu', or None for auto-detect
     

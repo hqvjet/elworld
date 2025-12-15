@@ -35,8 +35,8 @@ class VQ_VAE(nn.Module):
         x_recon = self.decoder(quantized)
 
         return {
-            'x_recon': x_recon,
-            'vq_loss': vq_loss,
-            'perplexity': perplexity,
-            'encoding_indices': vq_output['encoding_indices']
+            'x_recon': x_recon, # [B, 3, 192, 256]: The reconstructed image
+            'vq_loss': vq_loss, # VQ-VAE loss
+            'perplexity': perplexity, # Measure of codebook utilization, range [1, num_embedding]
+            'encoding_indices': vq_output['encoding_indices'] # [B, 24, 32]: Indices of the embeddings used
         }
