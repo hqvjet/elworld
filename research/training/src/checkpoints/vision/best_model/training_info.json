@@ -1,0 +1,29 @@
+{
+  "epoch": 123,
+  "loss": 0.011695462082620381,
+  "recon_loss": 0.006705046073869378,
+  "vq_loss": 0.00499041598974442,
+  "learning_rate": 0.0003,
+  "epoch_time": 209.44878244400024,
+  "best_loss": 0.011695462082620381,
+  "best_epoch": 123,
+  "is_best": true,
+  "timestamp": "2025-12-12T21:01:15.995989",
+  "config": {
+    "input_channels": 3,
+    "latent_dim": 64,
+    "input_size": [
+      256,
+      192
+    ],
+    "dropout_rate": 0.1,
+    "learning_rate": 0.0003,
+    "commitment_cost": 0.25,
+    "num_embedding": 512,
+    "num_hidden": 128,
+    "res_layer": 2,
+    "res_hidden": 32,
+    "batch_size": 128,
+    "num_epochs": 500
+  }
+}
