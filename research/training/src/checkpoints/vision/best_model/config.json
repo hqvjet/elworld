@@ -1,0 +1,17 @@
+{
+  "input_channels": 3,
+  "latent_dim": 64,
+  "input_size": [
+    256,
+    192
+  ],
+  "dropout_rate": 0.1,
+  "learning_rate": 0.0003,
+  "commitment_cost": 0.25,
+  "num_embedding": 512,
+  "num_hidden": 128,
+  "res_layer": 2,
+  "res_hidden": 32,
+  "batch_size": 128,
+  "num_epochs": 500
+}
