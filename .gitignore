@@ -2,6 +2,5 @@
 *.mp4
 venv
 __pycache__
-*.pth
 vision_model_checkpoint_*
 memory_model_checkpoint_*
