@@ -30,7 +30,7 @@ def get_vision_config(config: Dict) -> Dict:
 
 
 def get_memory_config(config: Dict) -> Dict:
-    """Get memory (MDN-GRU) configuration."""
+    """Get memory (Transformer/MinGPT) configuration."""
     return config.get('memory_config', {})
 
 

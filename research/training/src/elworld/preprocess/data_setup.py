@@ -1,10 +1,12 @@
 import sys
+import torch
 from pathlib import Path
 from torch.utils.data import DataLoader
 
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from elworld.data.gameplay_data import GameplayDataset, SequenceGameplayDataset
+from elworld.data.memory_data import MemoryDataset
 
 
 def setup_vision_data(data_path, vision_config, general_config) -> DataLoader:
@@ -52,48 +54,66 @@ def setup_vision_data(data_path, vision_config, general_config) -> DataLoader:
     return vision_dataloader
 
 
-def setup_memory_data(data_path, memory_config, vision_config, general_config, sequence_length=32):
+def setup_memory_data(data_path, memory_config, vision_config, general_config):
     """
-    Setup data for memory model (MDN-GRU) training.
-    Memory model needs sequences of (latent_states, actions) pairs.
+    Setup data for memory model (Transformer/MinGPT) training.
+    Memory model needs sequences of visual tokens (encoding_indices) and actions.
     
     Args:
         data_path: Path to data directory
-        memory_config: Memory configuration dict
+        memory_config: Memory configuration dict with:
+            - block_size: Context length for transformer (e.g., 1537)
+            - vocab_size: Codebook size from VQ-VAE (512)
+            - grid_latent_dim: [H, W] of latent space (e.g., [24, 32])
+            - batch_size: Training batch size
         vision_config: Vision config (for latent encoding)
         general_config: General configuration dict
-        sequence_length: Length of sequences for RNN
         
     Returns:
         DataLoader for memory training
     """
     print(f"\n{'='*60}")
-    print("Setting up Memory Dataset")
+    print("Setting up Memory Dataset (Transformer)")
     print(f"{'='*60}")
-    print("[TODO] Memory model needs latent features from trained vision model")
+    print("[TODO] Memory model needs visual tokens from trained vision model")
     print("This requires:")
     print("  1. Load trained VQ-VAE checkpoint")
-    print("  2. Encode all frames to latent space")
-    print("  3. Create sequences of (latent, action) pairs")
-    print("  4. Train MDN-GRU to predict next latent given (latent, action)")
+    print("  2. Encode all frames to visual tokens (encoding_indices)")
+    print("  3. Flatten tokens: [B, 24, 32] -> [B, 768] visual token sequence")
+    print("  4. Create context windows of length block_size (1537 tokens)")
+    print("  5. Train Transformer to predict next token given previous tokens + action")
+    print(f"\nMemory config:")
+    print(f"  Block size: {memory_config.get('block_size', 'N/A')}")
+    print(f"  Vocab size: {memory_config.get('vocab_size', 'N/A')}")
+    print(f"  Grid latent: {memory_config.get('grid_latent_dim', 'N/A')}")
+    print(f"  Num layers: {memory_config.get('num_layers', 'N/A')}")
+    print(f"  Num heads: {memory_config.get('num_heads', 'N/A')}")
     
-    # TODO: Implement after vision model is trained
-    # memory_dataset = SequenceGameplayDataset(
-    #     data_dir=data_path,
-    #     sequence_length=sequence_length,
-    #     max_files=general_config.get('total_play'),
-    #     transform=memory_transform
-    # )
+    # Create memory dataset with encoded visual tokens
+    checkpoint_path = "checkpoints/vision/best_model"  # Use best VQ-VAE model
     
-    # memory_dataloader = DataLoader(
-    #     memory_dataset,
-    #     batch_size=memory_config.get('batch_size', 32),
-    #     shuffle=True,
-    #     num_workers=4,
-    #     pin_memory=True
-    # )
+    memory_dataset = MemoryDataset(
+        data_dir=data_path,
+        checkpoint_path=checkpoint_path,
+        max_files=general_config.get('total_play'),
+        sequence_length=2,  # Frame_t -> Frame_t+1 prediction
+        device='cuda' if torch.cuda.is_available() else 'cpu'
+    )
     
-    return None
+    memory_dataloader = DataLoader(
+        memory_dataset,
+        batch_size=memory_config.get('batch_size', 64),
+        shuffle=True,
+        num_workers=0,  # Single process - safe and stable
+        pin_memory=True
+    )
+    
+    print(f"\nMemory dataloader ready:")
+    print(f"  Total sequences: {len(memory_dataset)}")
+    print(f"  Total batches: {len(memory_dataloader)}")
+    print(f"  Batch size: {memory_config.get('batch_size', 64)}")
+    
+    return memory_dataloader
 
 
 def setup_control_data(data_path, control_config, general_config):

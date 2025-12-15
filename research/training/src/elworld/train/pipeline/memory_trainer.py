@@ -5,43 +5,43 @@ import json
 from pathlib import Path
 from datetime import datetime
 
-from elworld.model.vision import VisionModel
+from elworld.model.memory import MemoryModel
 
-class VisionTrainer:
-    def __init__(self, vision_config, device='cuda', checkpoint_dir='checkpoints/vision', use_amp=True):
+
+class MemoryTrainer:
+    def __init__(self, memory_config, device='cuda', checkpoint_dir='checkpoints/memory'):
         """
         Args:
-            vision_config: Dictionary from config.yaml's vision_config section
+            memory_config: Dictionary from config.yaml's memory_config section
             device: Device to train on ('cuda' or 'cpu')
-            checkpoint_dir: Directory to save checkpoints (default: checkpoints/vision)
-            use_amp: Use Automatic Mixed Precision for faster training
+            checkpoint_dir: Directory to save checkpoints (default: checkpoints/memory)
         """
-        self.vision_config = vision_config
+        self.memory_config = memory_config
         self.device = device
         self.checkpoint_dir = Path(checkpoint_dir)
         self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        self.use_amp = use_amp and torch.cuda.is_available()
         
         # Create best_model directory
-        self.best_model_dir = self.checkpoint_dir / "best_model"
+        self.best_model_dir = self.checkpoint_dir / "best_memory_model"
         self.best_model_dir.mkdir(parents=True, exist_ok=True)
         
-        self.model = VisionModel(
-            num_hidden=vision_config['num_hidden'],
-            res_layer=vision_config['res_layer'],
-            res_hidden=vision_config['res_hidden'],
-            input_channels=vision_config['input_channels'],
-            num_embedding=vision_config['num_embedding'],
-            embedding_dim=vision_config['latent_dim'],
-            commitment_cost=vision_config['commitment_cost']
+        self.model = MemoryModel(
+            vocab_size=memory_config['vocab_size'],
+            block_size=memory_config['block_size'],
+            n_emb=memory_config['n_emb'],
+            num_layers=memory_config['num_layers'],
+            num_heads=memory_config['num_heads'],
+            dropout=memory_config['dropout'],
+            action_dim=memory_config['action_dim']
         ).to(device)
         
         self.optimizer = torch.optim.AdamW(
             self.model.parameters(),
-            lr=vision_config['learning_rate']
+            lr=memory_config['learning_rate']
         )
         
         # GradScaler for AMP
+        self.use_amp = torch.cuda.is_available()
         self.scaler = torch.cuda.amp.GradScaler() if self.use_amp else None
         
         # Learning rate scheduler
@@ -49,13 +49,11 @@ class VisionTrainer:
             self.optimizer,
             mode='min',
             factor=0.5,
-            patience=20
+            patience=10
         )
         
-        self.criterion = torch.nn.MSELoss()
-        
-        self.num_epochs = vision_config['num_epochs']
-        self.batch_size = vision_config['batch_size']
+        self.num_epochs = memory_config['num_epochs']
+        self.batch_size = memory_config['batch_size']
         
         # Track best model
         self.best_loss = float('inf')
@@ -66,24 +64,24 @@ class VisionTrainer:
         self._load_existing_checkpoint()
         
         print(f"\n{'='*60}")
-        print("VisionTrainer Initialized")
+        print("MemoryTrainer Initialized")
         print(f"{'='*60}")
         print(f"Device: {self.device}")
         if torch.cuda.is_available():
             print(f"GPU: {torch.cuda.get_device_name(0)}")
             print(f"CUDA Version: {torch.version.cuda}")
-            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.2f} GB")
         print(f"AMP (Mixed Precision): {'Enabled' if self.use_amp else 'Disabled'}")
-        print(f"Model Parameters: {sum(p.numel() for p in self.model.parameters()):,}")
-        print(f"Trainable Parameters: {sum(p.numel() for p in self.model.parameters() if p.requires_grad):,}")
+        print(f"Model Parameters: {self.model.get_num_params():,}")
         print(f"Batch Size: {self.batch_size}")
-        print(f"Learning Rate: {vision_config['learning_rate']}")
+        print(f"Learning Rate: {memory_config['learning_rate']}")
         print(f"Total Epochs: {self.num_epochs}")
+        print(f"Block Size: {memory_config['block_size']}")
+        print(f"Vocab Size: {memory_config['vocab_size']}")
         print(f"{'='*60}\n")
 
     def _load_existing_checkpoint(self):
         """Find and load the latest checkpoint if exists."""
-        # First, load best model info if exists
+        # Load best model info
         if self.best_model_dir.exists():
             metadata_path = self.best_model_dir / "training_info.json"
             if metadata_path.exists():
@@ -100,7 +98,6 @@ class VisionTrainer:
             print(f"{'='*60}")
             self.load_checkpoint(latest_checkpoint)
             
-            # Load epoch number from metadata
             metadata_path = latest_checkpoint / "training_info.json"
             if metadata_path.exists():
                 with open(metadata_path, 'r') as f:
@@ -110,11 +107,10 @@ class VisionTrainer:
     
     def _find_latest_checkpoint(self):
         """Find the latest checkpoint folder."""
-        checkpoint_folders = list(self.checkpoint_dir.glob("vision_model_checkpoint_*"))
+        checkpoint_folders = list(self.checkpoint_dir.glob("memory_model_checkpoint_*"))
         if not checkpoint_folders:
             return None
         
-        # Extract epoch numbers and find max
         epochs = []
         for folder in checkpoint_folders:
             try:
@@ -126,7 +122,6 @@ class VisionTrainer:
         if not epochs:
             return None
         
-        # Return folder with highest epoch number
         latest = max(epochs, key=lambda x: x[0])
         return latest[1]
     
@@ -134,14 +129,13 @@ class VisionTrainer:
         self.model.train()
         
         print(f"\n{'='*60}")
-        print("Starting Training")
+        print("Starting Memory Model Training")
         print(f"{'='*60}")
-        print(f"Dataset size: {len(dataloader.dataset):,} samples")
+        print(f"Dataset size: {len(dataloader.dataset):,} sequences")
         print(f"Batches per epoch: {len(dataloader)}")
         print(f"Samples per batch: {self.batch_size}")
         print(f"Total iterations: {self.num_epochs * len(dataloader):,}")
         print(f"Checkpoint dir: {self.checkpoint_dir}")
-        print(f"Saving: Every epoch + best model")
         if self.start_epoch > 0:
             print(f"Resuming from epoch: {self.start_epoch}")
             print(f"Best loss so far: {self.best_loss:.6f} (epoch {self.best_epoch})")
@@ -150,8 +144,6 @@ class VisionTrainer:
         for epoch in range(self.start_epoch, self.num_epochs):
             epoch_start_time = time.time()
             epoch_loss = 0.0
-            epoch_recon_loss = 0.0
-            epoch_vq_loss = 0.0
             
             print(f"\n{'─'*60}")
             print(f"Epoch {epoch+1}/{self.num_epochs}")
@@ -167,58 +159,59 @@ class VisionTrainer:
             for batch_idx, batch in enumerate(tqdm.tqdm(dataloader, desc=f"Training")):
                 batch_start = time.time()
                 
-                if isinstance(batch, dict):
-                    inputs = batch['observation'].to(self.device, non_blocking=True)
-                else:
-                    inputs = batch.to(self.device, non_blocking=True)
+                # Get batch data
+                input_tokens = batch['input_tokens'].to(self.device, non_blocking=True)  # [B, seq_len, 768]
+                actions = batch['actions'].to(self.device, non_blocking=True)  # [B, seq_len, action_dim]
+                target_tokens = batch['target_tokens'].to(self.device, non_blocking=True)  # [B, seq_len, 768]
                 
-                # Normalize if needed (data is already in [0, 255] uint8 range)
-                if inputs.dtype == torch.uint8 or inputs.max() > 1.0:
-                    inputs = inputs.float() / 255.0
+                # Process each frame in sequence independently
+                # Flatten batch and sequence: [B, seq_len, 768] -> [B*seq_len, 768]
+                B, seq_len, token_len = input_tokens.shape
+                input_tokens_flat = input_tokens.view(B * seq_len, token_len)  # [B*seq_len, 768]
+                target_tokens_flat = target_tokens.view(B * seq_len, token_len)  # [B*seq_len, 768]
+                
+                # Actions: one per frame, expand later in model
+                # [B, seq_len, action_dim] -> [B*seq_len, action_dim]
+                actions_flat = actions.view(B * seq_len, -1)  # [B*seq_len, action_dim]
                 
                 self.optimizer.zero_grad(set_to_none=True)
                 
                 # Use AMP for faster training
                 if self.use_amp:
-                    with torch.cuda.amp.autocast():
-                        outputs = self.model(inputs)
-                        recon_loss = self.criterion(outputs['x_recon'], inputs)
-                        vq_loss = outputs['vq_loss']
-                        loss = recon_loss + vq_loss
+                    with torch.amp.autocast('cuda'):
+                        output = self.model(
+                            input_tokens_flat,
+                            actions=actions_flat,
+                            targets=target_tokens_flat
+                        )
+                        loss = output['loss']
                     
                     self.scaler.scale(loss).backward()
                     self.scaler.step(self.optimizer)
                     self.scaler.update()
                 else:
-                    outputs = self.model(inputs)
-                    recon_loss = self.criterion(outputs['x_recon'], inputs)
-                    vq_loss = outputs['vq_loss']
-                    loss = recon_loss + vq_loss
+                    output = self.model(
+                        input_tokens_flat,
+                        actions=actions_flat,
+                        targets=target_tokens_flat
+                    )
+                    loss = output['loss']
                     
                     loss.backward()
                     self.optimizer.step()
                 
                 epoch_loss += loss.item()
-                epoch_recon_loss += recon_loss.item()
-                epoch_vq_loss += vq_loss.item()
-                
                 batch_times.append(time.time() - batch_start)
             
             avg_loss = epoch_loss / len(dataloader)
-            avg_recon = epoch_recon_loss / len(dataloader)
-            avg_vq = epoch_vq_loss / len(dataloader)
-            
             epoch_time = time.time() - epoch_start_time
             avg_batch_time = sum(batch_times) / len(batch_times) if batch_times else 0
-            
             current_lr = self.optimizer.param_groups[0]['lr']
             
             print(f"\n{'─'*60}")
             print(f"Epoch {epoch+1}/{self.num_epochs} Summary")
             print(f"{'─'*60}")
             print(f"Loss:        {avg_loss:.6f}")
-            print(f"  Recon:     {avg_recon:.6f}")
-            print(f"  VQ:        {avg_vq:.6f}")
             print(f"Learning Rate: {current_lr:.6f}")
             print(f"Time:        {epoch_time:.2f}s (avg batch: {avg_batch_time*1000:.2f}ms)")
             
@@ -230,120 +223,85 @@ class VisionTrainer:
             # Update learning rate scheduler
             self.scheduler.step(avg_loss)
             
-            # Clear CUDA cache to free unused memory
+            # Clear CUDA cache
             if torch.cuda.is_available():
                 torch.cuda.empty_cache()
             
-            # Save checkpoint for current epoch
-            checkpoint_dir = self.checkpoint_dir / f"vision_model_checkpoint_{epoch+1}"
-            self.save_checkpoint_folder(checkpoint_dir, epoch + 1, avg_loss, avg_recon, avg_vq, current_lr, epoch_time)
+            # Save checkpoint
+            checkpoint_dir = self.checkpoint_dir / f"memory_model_checkpoint_{epoch+1}"
+            self.save_checkpoint_folder(checkpoint_dir, epoch + 1, avg_loss, current_lr, epoch_time)
             print(f"✓ Checkpoint saved: {checkpoint_dir.name}/")
             
             # Save best model
             if avg_loss < self.best_loss:
                 self.best_loss = avg_loss
                 self.best_epoch = epoch + 1
-                self.save_checkpoint_folder(self.best_model_dir, epoch + 1, avg_loss, avg_recon, avg_vq, current_lr, epoch_time, is_best=True)
+                self.save_checkpoint_folder(self.best_model_dir, epoch + 1, avg_loss, current_lr, epoch_time, is_best=True)
                 print(f"✓ New best model saved! Loss: {avg_loss:.6f}")
             
             print(f"{'─'*60}")
         
         print(f"\n{'='*60}")
-        print(f"Training completed!")
-        print(f"  Best loss: {self.best_loss:.4f} (epoch {self.best_epoch})")
+        print(f"Memory Model Training completed!")
+        print(f"  Best loss: {self.best_loss:.6f} (epoch {self.best_epoch})")
         print(f"  Best model: {self.best_model_dir}/")
         print(f"  Total checkpoints: {self.num_epochs}")
         print(f"{'='*60}")
     
-    def save_checkpoint_folder(self, folder_path, epoch, loss, recon_loss, vq_loss, lr, epoch_time, is_best=False):
-        """Save model checkpoint in HuggingFace-style folder structure."""
+    def save_checkpoint_folder(self, folder_path, epoch, loss, lr, epoch_time, is_best=False):
+        """Save model checkpoint in folder structure."""
         folder_path = Path(folder_path)
         folder_path.mkdir(parents=True, exist_ok=True)
         
         # Save model weights
-        model_path = folder_path / "model.pth"
-        torch.save(self.model.state_dict(), model_path)
+        torch.save(self.model.state_dict(), folder_path / "model.pth")
+        torch.save(self.optimizer.state_dict(), folder_path / "optimizer.pth")
+        torch.save(self.scheduler.state_dict(), folder_path / "scheduler.pth")
         
-        # Save optimizer state
-        optimizer_path = folder_path / "optimizer.pth"
-        torch.save(self.optimizer.state_dict(), optimizer_path)
-        
-        # Save scheduler state
-        scheduler_path = folder_path / "scheduler.pth"
-        torch.save(self.scheduler.state_dict(), scheduler_path)
-        
-        # Save training metadata
+        # Save metadata
         metadata = {
             'epoch': epoch,
             'loss': loss,
-            'recon_loss': recon_loss,
-            'vq_loss': vq_loss,
             'learning_rate': lr,
             'epoch_time': epoch_time,
             'best_loss': self.best_loss,
             'best_epoch': self.best_epoch,
             'is_best': is_best,
             'timestamp': datetime.now().isoformat(),
-            'config': self.vision_config
+            'config': self.memory_config
         }
         
-        metadata_path = folder_path / "training_info.json"
-        with open(metadata_path, 'w') as f:
+        with open(folder_path / "training_info.json", 'w') as f:
             json.dump(metadata, f, indent=2)
         
-        # Save model config separately for easy loading
-        config_path = folder_path / "config.json"
-        with open(config_path, 'w') as f:
-            json.dump(self.vision_config, f, indent=2)
+        with open(folder_path / "config.json", 'w') as f:
+            json.dump(self.memory_config, f, indent=2)
         
         # Create README
-        readme_path = folder_path / "README.md"
-        with open(readme_path, 'w') as f:
-            f.write(f"# Vision Model Checkpoint - Epoch {epoch}\n\n")
+        with open(folder_path / "README.md", 'w') as f:
+            f.write(f"# Memory Model Checkpoint - Epoch {epoch}\n\n")
             f.write(f"## Training Metrics\n\n")
             f.write(f"- **Epoch:** {epoch}\n")
-            f.write(f"- **Total Loss:** {loss:.6f}\n")
-            f.write(f"- **Reconstruction Loss:** {recon_loss:.6f}\n")
-            f.write(f"- **VQ Loss:** {vq_loss:.6f}\n")
+            f.write(f"- **Loss:** {loss:.6f}\n")
             f.write(f"- **Learning Rate:** {lr:.6f}\n")
             f.write(f"- **Epoch Time:** {epoch_time:.2f}s\n")
             if is_best:
                 f.write(f"\n**🏆 This is the best model so far!**\n")
-            f.write(f"\n## Files\n\n")
-            f.write(f"- `model.pth` - Model weights\n")
-            f.write(f"- `optimizer.pth` - Optimizer state\n")
-            f.write(f"- `scheduler.pth` - LR scheduler state\n")
-            f.write(f"- `training_info.json` - Complete training metadata\n")
-            f.write(f"- `config.json` - Model configuration\n")
-            f.write(f"\n## Usage\n\n")
-            f.write(f"```python\n")
-            f.write(f"# Load model\n")
-            f.write(f"model = VisionModel(**config)\n")
-            f.write(f"model.load_state_dict(torch.load('model.pth'))\n")
-            f.write(f"```\n")
     
     def load_checkpoint(self, folder_path):
         """Load model checkpoint from folder."""
         folder_path = Path(folder_path)
         
-        # Load model weights
-        model_path = folder_path / "model.pth"
-        self.model.load_state_dict(torch.load(model_path, map_location=self.device))
+        self.model.load_state_dict(torch.load(folder_path / "model.pth", map_location=self.device))
         
-        # Load optimizer state
-        optimizer_path = folder_path / "optimizer.pth"
-        if optimizer_path.exists():
-            self.optimizer.load_state_dict(torch.load(optimizer_path, map_location=self.device))
+        if (folder_path / "optimizer.pth").exists():
+            self.optimizer.load_state_dict(torch.load(folder_path / "optimizer.pth", map_location=self.device))
         
-        # Load scheduler state
-        scheduler_path = folder_path / "scheduler.pth"
-        if scheduler_path.exists():
-            self.scheduler.load_state_dict(torch.load(scheduler_path, map_location=self.device))
+        if (folder_path / "scheduler.pth").exists():
+            self.scheduler.load_state_dict(torch.load(folder_path / "scheduler.pth", map_location=self.device))
         
-        # Load metadata
-        metadata_path = folder_path / "training_info.json"
-        if metadata_path.exists():
-            with open(metadata_path, 'r') as f:
+        if (folder_path / "training_info.json").exists():
+            with open(folder_path / "training_info.json", 'r') as f:
                 metadata = json.load(f)
             
             self.best_loss = metadata.get('best_loss', float('inf'))
@@ -353,6 +311,3 @@ class VisionTrainer:
             print(f"  Epoch: {metadata.get('epoch', 'unknown')}")
             print(f"  Loss: {metadata.get('loss', 'unknown')}")
             print(f"  Best Loss: {self.best_loss:.6f} (epoch {self.best_epoch})")
-        else:
-            print(f"Checkpoint loaded from {folder_path}")
-            print(f"  Warning: No metadata found")

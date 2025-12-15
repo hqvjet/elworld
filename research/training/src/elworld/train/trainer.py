@@ -7,6 +7,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from utils import load_config, get_general_config, get_vision_config, get_memory_config
 from elworld.train.pipeline.vision_trainer import VisionTrainer
+from elworld.train.pipeline.memory_trainer import MemoryTrainer
 from elworld.preprocess.data_setup import setup_data
 from elworld.utils.real_vs_vision import extract_video
 
@@ -17,7 +18,7 @@ class Trainer:
     
     Modes:
         - "vision": Train only the vision model (VQ-VAE)
-        - "memory": Train only the memory model (MDN-GRU)
+        - "memory": Train only the memory model (Transformer/MinGPT)
         - "control": Train only the control model
         - "extract_video": Create comparison video (actual vs vision model)
     """
@@ -78,7 +79,8 @@ class Trainer:
         # Initialize vision trainer
         self.vision_trainer = VisionTrainer(
             vision_config=self.vision_config,
-            device=self.device
+            device=self.device,
+            checkpoint_dir='checkpoints/vision'
         )
         
         print(f"\nModel architecture:")
@@ -101,9 +103,9 @@ class Trainer:
         print(f"\nVision model training completed! ✓")
     
     def train_memory(self):
-        """Train memory model (MDN-GRU)."""
+        """Train memory model (Transformer/MinGPT)."""
         print(f"\n{'='*60}")
-        print("Training Memory Model (MDN-GRU)")
+        print("Training Memory Model (Transformer/MinGPT)")
         print(f"{'='*60}")
         
         # Setup data
@@ -116,11 +118,30 @@ class Trainer:
             general_config=self.general_config
         )
         
-        if self.memory_dataloader is None:
-            print("Skipping memory training (not implemented yet)...")
-            return
+        # Initialize memory trainer
+        self.memory_trainer = MemoryTrainer(
+            memory_config=self.memory_config,
+            device=self.device,
+            checkpoint_dir='checkpoints/memory'
+        )
         
-        print("[TODO] Memory trainer implementation")
+        print(f"\nModel architecture:")
+        print(f"  Vocab size: {self.memory_config['vocab_size']}")
+        print(f"  Block size: {self.memory_config['block_size']}")
+        print(f"  Embedding dim: {self.memory_config['n_emb']}")
+        print(f"  Num layers: {self.memory_config['num_layers']}")
+        print(f"  Num heads: {self.memory_config['num_heads']}")
+        print(f"  Action dim: {self.memory_config['action_dim']}")
+        
+        print(f"\nTraining parameters:")
+        print(f"  Batch size: {self.memory_config['batch_size']}")
+        print(f"  Learning rate: {self.memory_config['learning_rate']}")
+        print(f"  Epochs: {self.memory_config['num_epochs']}")
+        
+        # Train
+        self.memory_trainer.train(self.memory_dataloader)
+        
+        print(f"\nMemory model training completed! ✓")
     
     def train_control(self):
         """Train control model."""
@@ -161,7 +182,7 @@ class Trainer:
         if output_file is None:
             output_file = "vision_comparison.mp4"
         
-        checkpoint_path = "checkpoints/best_model"
+        checkpoint_path = "checkpoints/vision/best_model"
         
         print(f"\nConfiguration:")
         print(f"  Data file: {data_file}")
